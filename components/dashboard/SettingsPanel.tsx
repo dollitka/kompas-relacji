@@ -86,6 +86,16 @@ export function SettingsPanel({
       </section>
 
       <section className="card p-6">
+        <h2 className="mb-2 text-sm font-semibold text-navy-700">Kontakt</h2>
+        <p className="mb-3 text-sm text-navy-500">
+          Masz uwagi, znalazłeś/aś błąd albo chcesz coś zaproponować? Napisz do nas.
+        </p>
+        <a href="mailto:krelacji@gmail.com" className="text-sm font-medium text-navy-700 underline underline-offset-2 hover:text-navy-900">
+          krelacji@gmail.com
+        </a>
+      </section>
+
+      <section className="card p-6">
         <h2 className="mb-2 text-sm font-semibold text-navy-700">Dokumenty</h2>
         <div className="flex flex-wrap gap-4 text-sm">
           <Link href="/privacy" className="text-navy-500 underline underline-offset-2 hover:text-navy-900">Polityka prywatności</Link>

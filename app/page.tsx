@@ -34,6 +34,18 @@ export default async function HomePage() {
           ani pomocy specjalisty. W sytuacjach zagrożenia zawsze priorytetem jest Twoje
           bezpieczeństwo.
         </p>
+
+        <footer className="mt-10 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-navy-400">
+          <a href="mailto:krelacji@gmail.com" className="underline underline-offset-2 hover:text-navy-700">
+            Kontakt: krelacji@gmail.com
+          </a>
+          <Link href="/privacy" className="underline underline-offset-2 hover:text-navy-700">
+            Polityka prywatności
+          </Link>
+          <Link href="/terms" className="underline underline-offset-2 hover:text-navy-700">
+            Regulamin
+          </Link>
+        </footer>
       </div>
     </main>
   );
