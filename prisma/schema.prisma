@@ -1,0 +1,206 @@
+// ---------------------------------------------------------------------------
+// Schemat bazy danych — Relationship Compass
+// Każdy rekord z prywatnymi danymi jest powiązany z userId i chroniony
+// na poziomie API (patrz lib/auth.ts oraz middleware w każdej trasie API).
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --------------------------- KONTO / AUTORYZACJA ---------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  nick         String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  onboardingCompleted Boolean @default(false)
+
+  profile       Profile?
+  partner       Partner?
+  settings      Settings?
+  conversations Conversation[]
+  memories      Memory[]
+  patterns      Pattern[]
+  events        ImportantEvent[]
+  assessments   AttachmentAssessment[]
+
+  @@map("users")
+}
+
+// --------------------------------- PROFIL ----------------------------------
+
+model Profile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  displayName String
+
+  userGender      String? // opcjonalne, wolny tekst wybrany przez usera
+  partnerGender   String? // opcjonalne
+  relationshipType String  @default("inne") // np. heteroseksualny, jednopłciowy, inne
+
+  relationshipStart   DateTime?
+  livingTogether      Boolean?
+  relationshipRating  Int? // 1-10, subiektywna ocena użytkownika
+  topProblems         String? // wolny tekst z onboardingu
+  improvementGoals    String? // wolny tekst z onboardingu
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("profiles")
+}
+
+model Partner {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name  String? // nick/imię partnera podane przez użytkownika, opcjonalne
+  notes String? // dowolne notatki wolnego tekstu
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("partners")
+}
+
+// ---------------------------- TEST PRZYWIĄZANIA -----------------------------
+
+model AttachmentAssessment {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  anxiousScore  Int // 0-100
+  avoidantScore Int // 0-100
+  secureScore   Int // 0-100
+
+  answers Json // [{questionId, value}], value 1-5 lub null (pominięte)
+
+  completedAt DateTime @default(now())
+
+  @@map("attachment_assessments")
+}
+
+// -------------------------------- ROZMOWY -----------------------------------
+
+model Conversation {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title     String   @default("Nowa rozmowa")
+  mode      String? // np. "conflict", "cant_understand", "what_to_reply"...
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages Message[]
+  memories Memory[] // pamięci wyodrębnione z tej rozmowy
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  role    String // "user" | "assistant" | "system_notice"
+  content String @db.Text
+
+  flaggedCrisis Boolean @default(false) // czy wiadomość wywołała detekcję kryzysową
+
+  createdAt DateTime @default(now())
+
+  @@map("messages")
+}
+
+// --------------------------------- PAMIĘĆ -----------------------------------
+
+// category: FACT | INTERPRETATION | PATTERN | IMPORTANT_EVENT | OPEN_ISSUE
+// subject:  USER | PARTNER | RELATIONSHIP
+model Memory {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  category String
+  subject  String
+  content  String @db.Text
+
+  confidence Int @default(70) // 0-100, pewność AI co do trafności
+  importance Int @default(50) // 0-100, jak istotne na przyszłość
+
+  sourceConversationId String?
+  sourceConversation    Conversation? @relation(fields: [sourceConversationId], references: [id], onDelete: SetNull)
+
+  userConfirmed Boolean @default(false) // czy użytkownik potwierdził/edytował ręcznie
+  archived      Boolean @default(false) // "usunięte" - miękkie usuwanie na wypadek odzysku, ale nieużywane w promptach
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("memories")
+}
+
+model Pattern {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String  @db.Text
+  cycleSteps  Json? // np. ["Ty szukasz rozmowy", "Partner się wycofuje", ...]
+  category    String  @default("inne") // komunikacja, zazdrość, dystans, kontrola...
+
+  occurrences  Int      @default(1)
+  firstSeenAt  DateTime @default(now())
+  lastSeenAt   DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("patterns")
+}
+
+model ImportantEvent {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?  @db.Text
+  eventDate   DateTime @default(now())
+  valence     String   @default("neutral") // positive | negative | neutral
+
+  createdAt DateTime @default(now())
+
+  @@map("important_events")
+}
+
+// -------------------------------- USTAWIENIA --------------------------------
+
+model Settings {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  aiAnalysisConsent Boolean  @default(true) // potwierdzenie, że rozmowy są analizowane przez AI
+  memoryEnabled     Boolean  @default(true) // czy AI może w ogóle zapisywać nową pamięć
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
