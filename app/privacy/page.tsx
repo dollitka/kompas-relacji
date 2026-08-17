@@ -17,10 +17,12 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong>Analiza przez AI.</strong> Treść Twoich wiadomości jest przesyłana do
-          zewnętrznego dostawcy modelu AI (Anthropic) w celu wygenerowania odpowiedzi oraz
-          zaproponowania informacji do zapamiętania. Nie przekazujemy Twoich danych innym
-          podmiotom poza tymi niezbędnymi do działania aplikacji (dostawca modelu AI,
-          dostawca bazy danych/hostingu).
+          zewnętrznego dostawcy modelu AI (Google Gemini) w celu wygenerowania odpowiedzi oraz
+          zaproponowania informacji do zapamiętania. Na darmowym planie Gemini API Google
+          może wykorzystywać treść zapytań do ulepszania swoich produktów — to ważna różnica
+          względem płatnych planów AI, o której chcemy Cię uczciwie poinformować. Nie
+          przekazujemy Twoich danych innym podmiotom poza tymi niezbędnymi do działania
+          aplikacji (dostawca modelu AI, dostawca bazy danych/hostingu).
         </p>
         <p>
           <strong>Kontrola nad pamięcią.</strong> W zakładce „Pamięć” możesz w każdej

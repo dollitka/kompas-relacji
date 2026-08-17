@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { checkCrisisSignals } from "@/lib/ai/crisisDetection";
 import { buildSystemPrompt } from "@/lib/ai/systemPrompt";
-import { getAssistantReply, AnthropicConfigError, AnthropicRateLimitError, AnthropicAPIError, type ChatMessage } from "@/lib/ai/client";
+import { getAssistantReply, GeminiConfigError, GeminiRateLimitError, GeminiAPIError, type ChatMessage } from "@/lib/ai/client";
 import { extractAndStoreMemories } from "@/lib/ai/memoryExtraction";
 
 const HISTORY_LIMIT = 20; // ostatnie N wiadomości przekazywane jako kontekst do AI
@@ -96,13 +96,13 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("Chat error:", err);
-    if (err instanceof AnthropicConfigError) {
+    if (err instanceof GeminiConfigError) {
       return NextResponse.json({ error: "Asystent AI nie jest skonfigurowany (brak klucza API). Skontaktuj się z administratorem aplikacji." }, { status: 503 });
     }
-    if (err instanceof AnthropicRateLimitError) {
+    if (err instanceof GeminiRateLimitError) {
       return NextResponse.json({ error: err.message }, { status: 429 });
     }
-    if (err instanceof AnthropicAPIError) {
+    if (err instanceof GeminiAPIError) {
       return NextResponse.json({ error: "Asystent AI jest chwilowo niedostępny. Spróbuj ponownie za moment." }, { status: 502 });
     }
     return NextResponse.json({ error: "Coś poszło nie tak. Spróbuj ponownie." }, { status: 500 });

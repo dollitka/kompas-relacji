@@ -70,7 +70,7 @@ export function SettingsPanel({
         <div className="mt-4 border-t border-navy-100 pt-4">
           <Toggle
             label="Potwierdzam, że rozumiem, że moje rozmowy są analizowane przez AI"
-            description="Wiadomości wysyłane w chacie są przetwarzane przez model AI (Anthropic Claude), aby wygenerować odpowiedź i zaproponować pamięć do zapisania."
+            description="Wiadomości wysyłane w chacie są przetwarzane przez model AI (Google Gemini), aby wygenerować odpowiedź i zaproponować pamięć do zapisania. Na darmowym planie Gemini Google może wykorzystywać treść zapytań do ulepszania swoich produktów."
             checked={settings.aiAnalysisConsent}
             onChange={(v) => updateSetting("aiAnalysisConsent", v)}
             disabled={saving}

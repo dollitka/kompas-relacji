@@ -1,77 +1,93 @@
 // ---------------------------------------------------------------------------
-// Cienki wrapper na Anthropic Messages API. Używany WYŁĄCZNIE po stronie
-// serwera (API routes / server actions) — klucz API nigdy nie trafia do
-// przeglądarki.
+// Cienki wrapper na Google Gemini API (generativelanguage.googleapis.com).
+// Używany WYŁĄCZNIE po stronie serwera (API routes) — klucz API nigdy nie
+// trafia do przeglądarki.
+//
+// UWAGA (prywatność): w darmowym planie Gemini API Google może wykorzystywać
+// treść zapytań do ulepszania swoich produktów. Jeśli to problem, przełącz
+// się na płatne API (np. Anthropic Claude) i zaktualizuj ten plik zgodnie
+// z dokumentacją odpowiedniego dostawcy.
 // ---------------------------------------------------------------------------
 
-const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
+const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
 };
 
-export class AnthropicConfigError extends Error {}
-export class AnthropicRateLimitError extends Error {}
-export class AnthropicAPIError extends Error {}
+export class GeminiConfigError extends Error {}
+export class GeminiRateLimitError extends Error {}
+export class GeminiAPIError extends Error {}
 
 function getModel(): string {
-  return process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929";
+  return process.env.GEMINI_MODEL || "gemini-3-flash-preview";
 }
 
-async function callAnthropic(params: {
+function toGeminiRole(role: "user" | "assistant"): "user" | "model" {
+  return role === "assistant" ? "model" : "user";
+}
+
+async function callGemini(params: {
   system: string;
   messages: ChatMessage[];
   maxTokens?: number;
   temperature?: number;
 }): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new AnthropicConfigError(
-      "Brak ANTHROPIC_API_KEY w zmiennych środowiskowych. Ustaw ją w .env (patrz .env.example)."
+    throw new GeminiConfigError(
+      "Brak GEMINI_API_KEY w zmiennych środowiskowych. Ustaw ją w .env (patrz .env.example)."
     );
   }
 
+  const url = `${GEMINI_API_BASE}/${getModel()}:generateContent?key=${apiKey}`;
+
   let response: Response;
   try {
-    response = await fetch(ANTHROPIC_API_URL, {
+    response = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: getModel(),
-        max_tokens: params.maxTokens ?? 1500,
-        temperature: params.temperature ?? 1,
-        system: params.system,
-        messages: params.messages,
+        contents: params.messages.map((m) => ({
+          role: toGeminiRole(m.role),
+          parts: [{ text: m.content }],
+        })),
+        systemInstruction: { parts: [{ text: params.system }] },
+        generationConfig: {
+          temperature: params.temperature ?? 1,
+          maxOutputTokens: params.maxTokens ?? 1500,
+        },
       }),
     });
-  } catch (networkErr) {
-    throw new AnthropicAPIError("Brak połączenia z API modelu AI. Sprawdź internet i spróbuj ponownie.");
+  } catch {
+    throw new GeminiAPIError("Brak połączenia z API modelu AI. Sprawdź internet i spróbuj ponownie.");
   }
 
   if (response.status === 429) {
-    throw new AnthropicRateLimitError("Zbyt wiele zapytań do AI w krótkim czasie. Spróbuj za chwilę.");
+    throw new GeminiRateLimitError(
+      "Zbyt wiele zapytań do AI w krótkim czasie (darmowy limit Gemini). Spróbuj za chwilę."
+    );
   }
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
-    throw new AnthropicAPIError(`Błąd API modelu AI (status ${response.status}): ${body.slice(0, 300)}`);
+    throw new GeminiAPIError(`Błąd API modelu AI (status ${response.status}): ${body.slice(0, 300)}`);
   }
 
   const data = await response.json();
 
-  const text = (data.content ?? [])
-    .filter((block: any) => block.type === "text")
-    .map((block: any) => block.text)
+  const candidate = data.candidates?.[0];
+  const text = (candidate?.content?.parts ?? [])
+    .map((p: any) => p.text || "")
     .join("\n")
     .trim();
 
   if (!text) {
-    throw new AnthropicAPIError("Model AI zwrócił pustą odpowiedź.");
+    // Gemini czasem zwraca pustą odpowiedź z powodu filtrów bezpieczeństwa
+    // (finishReason: "SAFETY" itp.) zamiast błędu HTTP.
+    const reason = candidate?.finishReason ? ` (finishReason: ${candidate.finishReason})` : "";
+    throw new GeminiAPIError(`Model AI zwrócił pustą odpowiedź${reason}.`);
   }
 
   return text;
@@ -79,16 +95,28 @@ async function callAnthropic(params: {
 
 /** Główna rozmowa użytkownika z asystentem relacji. */
 export async function getAssistantReply(system: string, messages: ChatMessage[]): Promise<string> {
-  return callAnthropic({ system, messages, maxTokens: 1800, temperature: 1 });
+  const reply = await callGemini({ system, messages, maxTokens: 1800, temperature: 1 });
+  return stripMarkdown(reply);
+}
+
+// Siatka bezpieczeństwa: interfejs czatu renderuje odpowiedzi jako zwykły tekst, więc
+// nawet gdy model (mimo instrukcji w systemPromptcie) doda składnię Markdown, usuwamy
+// najbardziej rażące symbole (# nagłówki, **pogrubienia**, *kursywy*), żeby użytkownik
+// nie widział surowych znaków w czacie.
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/^#{1,6}\s+/gm, "") // nagłówki na początku linii
+    .replace(/\*\*(.+?)\*\*/g, "$1") // **pogrubienie** (usuwane najpierw)
+    .replace(/\*(.+?)\*/g, "$1"); // *kursywa* (bezpieczne dopiero po usunięciu **)
 }
 
 /**
  * Drugie, "ciche" wywołanie AI po turze rozmowy — prosi model o wyodrębnienie
- * kandydatów na trwałą pamięć w formacie JSON. Niższa temperatura dla
- * stabilniejszej, bardziej przewidywalnej strukturyzacji danych.
+ * kandydatów na trwałą pamięć / wzorce w formacie JSON. Niższa temperatura
+ * dla stabilniejszej, bardziej przewidywalnej strukturyzacji danych.
  */
 export async function getStructuredJSON(system: string, userContent: string): Promise<string> {
-  return callAnthropic({
+  return callGemini({
     system,
     messages: [{ role: "user", content: userContent }],
     maxTokens: 1200,

@@ -67,7 +67,15 @@ odpisać") zasługuje na krótszą, praktyczną odpowiedź, nie na pełny wykła
 
 Pisz po polsku, ciepłym, spokojnym, ale konkretnym tonem. Unikaj żargonu klinicznego
 bez wyjaśnienia. Nie bądź nadmiernie potakujący — jeśli coś w opisie użytkownika budzi
-wątpliwość, powiedz to delikatnie wprost.`;
+wątpliwość, powiedz to delikatnie wprost.
+
+# FORMATOWANIE
+
+Interfejs czatu wyświetla Twoje odpowiedzi jako zwykły tekst — NIE używaj składni
+Markdown. Konkretnie: żadnych znaków "#" ani "##" na nagłówki, żadnych "**pogrubień**",
+żadnych "*kursyw*". Jeśli chcesz wyróżnić temat sekcji, po prostu zacznij zdanie od
+niego zwykłym tekstem (np. "Co mogło się wydarzyć: ..."), ewentualnie w osobnym akapicie
+oddzielonym pustą linią. Do list używaj myślnika "-" na początku linii, nic więcej.`;
 
 function formatAttachment(a: AttachmentAssessment | null): string {
   if (!a) {

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { analyzePatterns } from "@/lib/ai/patternAnalysis";
-import { AnthropicConfigError, AnthropicRateLimitError, AnthropicAPIError } from "@/lib/ai/client";
+import { GeminiConfigError, GeminiRateLimitError, GeminiAPIError } from "@/lib/ai/client";
 
 export async function GET() {
   try {
@@ -76,9 +76,9 @@ export async function POST() {
   } catch (err: any) {
     if (err?.status === 401) return NextResponse.json({ error: "Musisz się zalogować." }, { status: 401 });
     console.error("Pattern analysis error:", err);
-    if (err instanceof AnthropicConfigError) return NextResponse.json({ error: err.message }, { status: 503 });
-    if (err instanceof AnthropicRateLimitError) return NextResponse.json({ error: err.message }, { status: 429 });
-    if (err instanceof AnthropicAPIError) return NextResponse.json({ error: "Analiza wzorców jest chwilowo niedostępna." }, { status: 502 });
+    if (err instanceof GeminiConfigError) return NextResponse.json({ error: err.message }, { status: 503 });
+    if (err instanceof GeminiRateLimitError) return NextResponse.json({ error: err.message }, { status: 429 });
+    if (err instanceof GeminiAPIError) return NextResponse.json({ error: "Analiza wzorców jest chwilowo niedostępna." }, { status: 502 });
     return NextResponse.json({ error: "Nie udało się przeanalizować wzorców." }, { status: 500 });
   }
 }
