@@ -4,6 +4,10 @@ import { requireUser } from "@/lib/session";
 import { analyzePatterns } from "@/lib/ai/patternAnalysis";
 import { GeminiConfigError, GeminiRateLimitError, GeminiAPIError } from "@/lib/ai/client";
 
+// Tak samo jak w /api/messages - analiza wzorców też wywołuje AI i może
+// potrzebować więcej niż domyślne 10s.
+export const maxDuration = 60;
+
 export async function GET() {
   try {
     const user = await requireUser();

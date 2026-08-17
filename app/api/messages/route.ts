@@ -7,6 +7,12 @@ import { buildSystemPrompt } from "@/lib/ai/systemPrompt";
 import { getAssistantReply, GeminiConfigError, GeminiRateLimitError, GeminiAPIError, type ChatMessage } from "@/lib/ai/client";
 import { extractAndStoreMemories } from "@/lib/ai/memoryExtraction";
 
+// Domyślny limit czasu funkcji serwerowej na Vercel to 10s - odpowiedź AI dla
+// rozbudowanej analizy relacji czasem tyle nie starcza, co wygląda jak
+// "zawieszenie się" strony. Wydłużamy limit do 60s (maksimum na darmowym planie
+// Vercel Hobby).
+export const maxDuration = 60;
+
 const HISTORY_LIMIT = 20; // ostatnie N wiadomości przekazywane jako kontekst do AI
 
 const bodySchema = z.object({

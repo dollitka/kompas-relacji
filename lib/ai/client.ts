@@ -95,7 +95,7 @@ async function callGemini(params: {
 
 /** Główna rozmowa użytkownika z asystentem relacji. */
 export async function getAssistantReply(system: string, messages: ChatMessage[]): Promise<string> {
-  const reply = await callGemini({ system, messages, maxTokens: 1800, temperature: 1 });
+  const reply = await callGemini({ system, messages, maxTokens: 4096, temperature: 1 });
   return stripMarkdown(reply);
 }
 

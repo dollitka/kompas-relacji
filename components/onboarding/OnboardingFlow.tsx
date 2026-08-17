@@ -180,7 +180,18 @@ export function OnboardingFlow() {
         <div className="card space-y-5 p-8">
           <h2 className="font-display text-xl text-navy-900">Wasz związek</h2>
           <Field label="Od kiedy jesteście razem? (opcjonalnie)">
-            <input type="date" className="input-field" value={data.relationshipStart} onChange={(e) => update("relationshipStart", e.target.value)} />
+            <div className="flex items-center gap-2">
+              <input type="date" className="input-field" value={data.relationshipStart} onChange={(e) => update("relationshipStart", e.target.value)} />
+              {data.relationshipStart && (
+                <button
+                  type="button"
+                  onClick={() => update("relationshipStart", "")}
+                  className="shrink-0 whitespace-nowrap text-xs text-navy-400 underline underline-offset-2 hover:text-navy-700"
+                >
+                  Wyczyść datę
+                </button>
+              )}
+            </div>
           </Field>
           <Field label="Czy mieszkacie razem?">
             <div className="flex gap-2">

@@ -61,7 +61,7 @@ export const ATTACHMENT_QUESTIONS: AttachmentQuestion[] = [
 export const LIKERT_LABELS: Record<number, string> = {
   1: "zdecydowanie nie",
   2: "raczej nie",
-  3: "trudno powiedzieć",
+  3: "ani tak, ani nie",
   4: "raczej tak",
   5: "zdecydowanie tak",
 };

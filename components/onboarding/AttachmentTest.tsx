@@ -70,11 +70,11 @@ export function AttachmentTest({
         {currentQuestions.map((q) => (
           <fieldset key={q.id} className="card p-5">
             <legend className="mb-3 text-sm font-medium text-navy-900">{q.text}</legend>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {[1, 2, 3, 4, 5].map((val) => (
                 <label
                   key={val}
-                  className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs transition ${
+                  className={`flex cursor-pointer items-center justify-center rounded-full border px-3 py-2 text-center text-xs transition ${
                     answers[q.id] === val
                       ? "border-navy-700 bg-navy-700 text-white"
                       : "border-navy-100 bg-white text-navy-500 hover:bg-navy-50"
@@ -91,10 +91,12 @@ export function AttachmentTest({
                   {LIKERT_LABELS[val]}
                 </label>
               ))}
+            </div>
+            <div className="mt-2 text-center">
               <button
                 type="button"
                 onClick={() => setAnswer(q.id, null)}
-                className={`ml-1 rounded-full px-3 py-1.5 text-xs underline-offset-2 ${
+                className={`rounded-full px-3 py-1.5 text-xs underline-offset-2 ${
                   answers[q.id] === null && q.id in answers ? "text-navy-700 underline" : "text-navy-300 hover:underline"
                 }`}
               >
