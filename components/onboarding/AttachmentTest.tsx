@@ -1,9 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ATTACHMENT_QUESTIONS, LIKERT_LABELS, type AttachmentAnswer } from "@/lib/attachmentQuestions";
 
 const QUESTIONS_PER_PAGE = 5;
+// Zapisujemy postęp testu w przeglądarce, żeby przypadkowe wyjście z zakładki
+// (albo odświeżenie strony) nie kasowało odpowiedzi użytkownika.
+const DRAFT_STORAGE_KEY = "kompas-relacji:attachment-test-draft";
 
 export function AttachmentTest({
   onComplete,
@@ -14,6 +17,33 @@ export function AttachmentTest({
 }) {
   const [answers, setAnswers] = useState<Record<string, number | null>>({});
   const [page, setPage] = useState(0);
+
+  // Wczytaj zapisany wcześniej postęp (tylko w przeglądarce, po zamontowaniu -
+  // dzięki temu nie ma niezgodności między renderem serwera a klienta).
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === "object") {
+          if (parsed.answers) setAnswers(parsed.answers);
+          if (typeof parsed.page === "number") setPage(parsed.page);
+        }
+      }
+    } catch {
+      // Jeśli coś jest nie tak z zapisanymi danymi, po prostu zaczynamy od zera.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Zapisuj postęp przy każdej zmianie odpowiedzi lub strony.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({ answers, page }));
+    } catch {
+      // Brak dostępu do localStorage (np. tryb prywatny) - nie blokujemy testu.
+    }
+  }, [answers, page]);
 
   const pages = useMemo(() => {
     const chunks: (typeof ATTACHMENT_QUESTIONS)[] = [];
@@ -42,6 +72,11 @@ export function AttachmentTest({
       questionId: q.id,
       value: answers[q.id] ?? null,
     }));
+    try {
+      window.localStorage.removeItem(DRAFT_STORAGE_KEY);
+    } catch {
+      // Nieistotne, jeśli się nie uda - i tak formularz jest już wysłany.
+    }
     onComplete(finalAnswers);
   }
 
