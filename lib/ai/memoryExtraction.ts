@@ -8,23 +8,43 @@ import { prisma } from "@/lib/db";
 // informacje, które mają realną szansę być przydatne w przyszłych rozmowach
 // (fakty, powtarzające się reakcje, ważne wydarzenia, otwarte problemy).
 //
+// WAŻNE: model dostaje do wglądu to, co już zostało zapisane wcześniej (patrz
+// buildExistingMemorySummary), żeby nie proponował w kółko tego samego faktu
+// innymi słowami ("Daniel ma ADHD i jest unikający" / "Daniel przejawia cechy
+// unikające i ma ADHD" / ...). To główna linia obrony przed duplikatami -
+// prosta deduplikacja tekstowa niżej jest tylko dodatkową siatką bezpieczeństwa,
+// bo różne odmiany słów po polsku łatwo "oszukują" porównywanie tekstu.
+//
 // Próg: zapisujemy tylko kandydatów z importance >= MIN_IMPORTANCE, żeby
 // pamięć nie zapychała się drobiazgami z jednej wiadomości.
 // ---------------------------------------------------------------------------
 
 const MIN_IMPORTANCE_TO_SAVE = 55;
 const MAX_CANDIDATES_PER_TURN = 5;
+const MAX_EXISTING_MEMORY_IN_PROMPT = 40;
+const DUPLICATE_SIMILARITY_THRESHOLD = 0.55;
 
 const EXTRACTION_SYSTEM_PROMPT = `Analizujesz fragment rozmowy między użytkownikiem a AI Relationship Analyst.
 Twoje jedyne zadanie: wskazać, jakie informacje z tej wymiany WARTO zapisać jako
 długoterminową pamięć o użytkowniku, jego partnerze/partnerce lub relacji — czyli
 takie, które mogłyby być przydatne w PRZYSZŁYCH, innych rozmowach.
 
-NIE zapisuj: chwilowych emocji bez kontekstu, rzeczy oczywistych, powtórzeń tego, co
-już najpewniej wiadomo, drobnych szczegółów bez znaczenia na przyszłość.
+Dostajesz też listę "Co już wiadomo" - to, co zostało zapisane w poprzednich
+rozmowach. To NAJWAŻNIEJSZA zasada: jeśli coś z bieżącej wymiany powtarza fakt już
+obecny na tej liście - NAWET INNYMI SŁOWAMI, NAWET Z INNYM NIUANSEM - NIE
+proponuj tego ponownie. Przykład: jeśli na liście jest już "Daniel ma ADHD i
+przejawia cechy unikającego stylu przywiązania", NIE proponuj potem "Daniel
+prezentuje unikający styl przywiązania" ani "Partner ma ADHD i unika rozmów" -
+to ten sam fakt przeformułowany. Zgłoś nowy wpis tylko, gdy pojawia się coś
+ISTOTNIE nowego (nowy konkretny przykład zachowania, zmiana, coś, czego wcześniej
+nie było na liście) - a nie samo powtórzenie z inną stylistyką.
 
-ZAPISUJ: konkretne fakty o zachowaniach, powtarzające się reakcje, ważne wydarzenia,
-nierozwiązane problemy, granice, potrzeby, cechy sugerujące styl przywiązania.
+NIE zapisuj: chwilowych emocji bez kontekstu, rzeczy oczywistych, powtórzeń tego, co
+już wiadomo (patrz wyżej), drobnych szczegółów bez znaczenia na przyszłość.
+
+ZAPISUJ: konkretne NOWE fakty o zachowaniach, powtarzające się reakcje, ważne
+wydarzenia, nierozwiązane problemy, granice, potrzeby, cechy sugerujące styl
+przywiązania - czego jeszcze nie ma na liście "Co już wiadomo".
 
 Odpowiedz WYŁĄCZNIE poprawnym JSON-em (bez markdown, bez komentarzy, bez preambuły),
 w formacie:
@@ -38,7 +58,8 @@ w formacie:
   }
 ]}
 
-Jeśli nic nie warto zapisać, zwróć {"candidates": []}. Maksymalnie 5 kandydatów.
+Jeśli nic nowego nie warto zapisać, zwróć {"candidates": []} - to częsty i dobry
+wynik, nie staraj się wymyślić czegoś na siłę. Maksymalnie 5 kandydatów.
 "confidence" = jak bardzo to, co piszesz, wynika wprost z tekstu (FACT = zwykle wysoka,
 INTERPRETATION = zwykle średnia). "importance" = jak przydatne może być to w przyszłości.`;
 
@@ -91,7 +112,22 @@ export async function extractAndStoreMemories(params: {
   const settings = await prisma.settings.findUnique({ where: { userId: params.userId } });
   if (settings && settings.memoryEnabled === false) return;
 
-  const userContent = `Wiadomość użytkownika:\n"""${params.userMessage}"""\n\nOdpowiedź AI:\n"""${params.assistantMessage}"""`;
+  // Pobierz istniejącą pamięć NAJPIERW - potrzebna zarówno do promptu (żeby AI
+  // nie powtarzało tego, co już wie), jak i do końcowej deduplikacji tekstowej.
+  const existing = await prisma.memory.findMany({
+    where: { userId: params.userId, archived: false },
+    select: { content: true, subject: true, category: true, importance: true },
+    orderBy: { importance: "desc" },
+    take: 200,
+  });
+
+  const existingForPrompt = existing.slice(0, MAX_EXISTING_MEMORY_IN_PROMPT);
+  const existingSummary =
+    existingForPrompt.length === 0
+      ? "(jeszcze nic nie zapisano)"
+      : existingForPrompt.map((m) => `- [${m.subject}/${m.category}] ${m.content}`).join("\n");
+
+  const userContent = `## Co już wiadomo (już zapisane w pamięci)\n${existingSummary}\n\n## Bieżąca wymiana do przeanalizowania\n\nWiadomość użytkownika:\n"""${params.userMessage}"""\n\nOdpowiedź AI:\n"""${params.assistantMessage}"""`;
 
   let raw: string;
   try {
@@ -106,16 +142,13 @@ export async function extractAndStoreMemories(params: {
   const candidates = safeParseCandidates(raw).filter((c) => c.importance >= MIN_IMPORTANCE_TO_SAVE);
   if (candidates.length === 0) return;
 
-  // Prosta deduplikacja: pomiń kandydatów bardzo podobnych do istniejącej pamięci.
-  const existing = await prisma.memory.findMany({
-    where: { userId: params.userId, archived: false },
-    select: { content: true },
-    take: 200,
-    orderBy: { createdAt: "desc" },
+  // Dodatkowa siatka bezpieczeństwa: prosta deduplikacja tekstowa, porównywana
+  // tylko w obrębie tego samego "subject" (USER/PARTNER/RELATIONSHIP), żeby nie
+  // dawać fałszywych trafień między niepowiązanymi tematami.
+  const toCreate = candidates.filter((c) => {
+    const sameSubject = existing.filter((e) => e.subject === c.subject);
+    return !sameSubject.some((e) => similarity(normalize(e.content), normalize(c.content)) > DUPLICATE_SIMILARITY_THRESHOLD);
   });
-  const existingNormalized = existing.map((m) => normalize(m.content));
-
-  const toCreate = candidates.filter((c) => !existingNormalized.some((e) => similarity(e, normalize(c.content)) > 0.82));
 
   if (toCreate.length === 0) return;
 
@@ -133,11 +166,11 @@ export async function extractAndStoreMemories(params: {
 }
 
 function normalize(s: string): string {
-  return s.toLowerCase().trim().replace(/\s+/g, " ");
+  return s.toLowerCase().trim().replace(/[.,!?;:"']/g, "").replace(/\s+/g, " ");
 }
 
-// Bardzo prosta miara podobieństwa (Jaccard na słowach) — wystarczająca do
-// odsiania niemal identycznych duplikatów bez dodatkowego wywołania AI.
+// Prosta miara podobieństwa (Jaccard na słowach) — dodatkowa siatka
+// bezpieczeństwa poza kontekstem podawanym modelowi w prompcie.
 function similarity(a: string, b: string): number {
   const setA = new Set(a.split(" "));
   const setB = new Set(b.split(" "));
