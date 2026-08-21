@@ -6,10 +6,8 @@ import { ChatWindow } from "@/components/chat/ChatWindow";
 
 export default async function ChatConversationPage({
   params,
-  searchParams,
 }: {
   params: { id: string };
-  searchParams: { draft?: string };
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -32,7 +30,6 @@ export default async function ChatConversationPage({
           content: m.content,
           flaggedCrisis: m.flaggedCrisis,
         }))}
-        initialDraft={searchParams.draft ?? ""}
       />
     </AppShell>
   );

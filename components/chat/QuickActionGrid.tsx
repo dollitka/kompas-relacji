@@ -8,7 +8,7 @@ export function QuickActionGrid() {
   const router = useRouter();
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
-  async function handleClick(actionId: string, title: string, starter: string) {
+  async function handleClick(actionId: string, title: string) {
     setLoadingId(actionId);
     try {
       const res = await fetch("/api/conversations", {
@@ -18,7 +18,7 @@ export function QuickActionGrid() {
       });
       const data = await res.json();
       if (res.ok) {
-        router.push(`/chat/${data.conversation.id}?draft=${encodeURIComponent(starter)}`);
+        router.push(`/chat/${data.conversation.id}`);
       }
     } finally {
       setLoadingId(null);
@@ -30,7 +30,7 @@ export function QuickActionGrid() {
       {QUICK_ACTIONS.map((action) => (
         <button
           key={action.id}
-          onClick={() => handleClick(action.id, action.label, action.starterMessage)}
+          onClick={() => handleClick(action.id, action.label)}
           disabled={loadingId !== null}
           className="card p-4 text-left text-sm font-medium text-navy-700 transition hover:border-lilac-300 hover:bg-lilac-50 disabled:opacity-50"
         >

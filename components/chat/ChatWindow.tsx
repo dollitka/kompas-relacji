@@ -15,15 +15,13 @@ export function ChatWindow({
   conversationId,
   title,
   initialMessages,
-  initialDraft,
 }: {
   conversationId: string;
   title: string;
   initialMessages: ChatMsg[];
-  initialDraft?: string;
 }) {
   const [messages, setMessages] = useState<ChatMsg[]>(initialMessages);
-  const [draft, setDraft] = useState(initialDraft ?? "");
+  const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [crisisType, setCrisisType] = useState<"violence" | "self_harm" | null>(null);
