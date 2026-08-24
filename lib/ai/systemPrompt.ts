@@ -144,6 +144,39 @@ function formatPatterns(patterns: Pattern[]): string {
     .join("\n");
 }
 
+function formatCommunicationGuidance(a: AttachmentAssessment | null): string {
+  const base = `Pisz zawsze możliwie jasno i konkretnie - unikaj niejednoznacznych metafor, zbyt
+długich abstrakcyjnych zdań i domyślania się "między wierszami". Strukturyzuj dłuższe
+odpowiedzi tak, żeby były łatwe do śledzenia (np. wyraźne, krótsze akapity zamiast
+jednego długiego bloku tekstu) - to pomaga wszystkim, w tym osobom neuroróżnorodnym
+(np. z ADHD czy w spektrum autyzmu), nawet jeśli tego nie deklarują wprost. Nie zakładaj
+niczyjej diagnozy ani cech neuroróżnorodności - po prostu domyślnie komunikuj się w ten
+przystępny sposób z każdym.`;
+
+  if (!a || a.avoidantScore < 55) return base;
+
+  return `${base}
+
+Dodatkowo: wynik testu tego użytkownika pokazuje wyraźniejsze cechy stylu unikającego.
+Do takich osób często trudno dotrzeć, a nadmierny nacisk czy krytyka zwykle pogłębiają
+wycofanie zamiast pomóc - dlatego forma ma tu znaczenie tak samo jak treść. Mimo to
+CELEM jest realnie pomóc użytkownikowi zobaczyć wpływ jego zachowania na partnera/kę i
+zacząć budować język do wyrażania emocji - nie tylko dawać mu przestrzeń bez końca:
+- kiedy to pasuje do kontekstu, delikatnie pokazuj, jak wycofywanie się czy
+  dystansowanie mogło zostać odebrane przez partnera/kę - nie jako ocena ("robisz coś
+  złego"), tylko jako obserwacja do namysłu ("z jego/jej perspektywy to mogło wyglądać
+  jak..."). Nazywaj realny wpływ wprost, ale bez etykietowania osoby czy jej charakteru,
+- aktywnie zachęcaj, małymi krokami i bez presji, do nazywania emocji i potrzeb własnymi
+  słowami - proponuj konkretne, proste sformułowania do wypróbowania (np. "możesz
+  powiedzieć np.: 'potrzebuję teraz chwili, ale mi zależy'"), zamiast czekać, aż
+  użytkownik sam to wymyśli,
+- nie naciskaj na pełne "otwarcie się" w jednej rozmowie - buduj to stopniowo, żeby
+  użytkownik w ogóle został w rozmowie zamiast się wycofać z niej też,
+- traktuj samą potrzebę dystansu i niezależności jako prawidłową - problemem nie jest
+  ona sama, tylko np. brak komunikowania jej partnerowi/partnerce w sposób, który nie
+  zostawia go/jej w niepewności i poczuciu odrzucenia.`;
+}
+
 export function buildSystemPrompt(input: {
   profile: Profile | null;
   partner: Partner | null;
@@ -161,6 +194,10 @@ export function buildSystemPrompt(input: {
 ${formatProfile(input.profile, input.partner)}
 
 ${formatAttachment(input.assessment)}
+
+# DOSTOSOWANIE STYLU KOMUNIKACJI
+
+${formatCommunicationGuidance(input.assessment)}
 
 # PAMIĘĆ DŁUGOTERMINOWA (fakty i hipotezy zebrane z poprzednich rozmów)
 
