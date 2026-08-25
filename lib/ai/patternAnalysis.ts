@@ -1,10 +1,13 @@
 import { getStructuredJSON } from "@/lib/ai/client";
+import { prisma } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
 // Analiza wzorców (sekcja 8 specyfikacji): na żądanie użytkownika ("Wzorce w
-// naszej relacji" → "Przeanalizuj ponownie") prosimy AI o spojrzenie na
-// zebrane fakty/interpretacje i historię rozmów, i wskazanie POWTARZAJĄCYCH
-// SIĘ schematów — najlepiej z rozbiciem na kroki cyklu (np. pursue/withdraw).
+// naszej relacji" → "Przeanalizuj ponownie") LUB automatycznie w tle co kilka
+// wiadomości (patrz recomputePatternsForUser, wołane z app/api/messages/route.ts)
+// prosimy AI o spojrzenie na zebrane fakty/interpretacje i historię rozmów, i
+// wskazanie POWTARZAJĄCYCH SIĘ schematów — najlepiej z rozbiciem na kroki cyklu
+// (np. pursue/withdraw).
 // ---------------------------------------------------------------------------
 
 const PATTERN_SYSTEM_PROMPT = `Analizujesz zebrane informacje o związku użytkownika (fakty, interpretacje,
@@ -57,4 +60,75 @@ export async function analyzePatterns(contextText: string): Promise<PatternCandi
   } catch {
     return [];
   }
+}
+
+const MIN_MESSAGES_FOR_ANALYSIS = 4;
+
+function normalizeTitle(s: string): string {
+  return s.toLowerCase().trim();
+}
+
+function titleSimilarity(a: string, b: string): number {
+  const setA = new Set(a.split(" "));
+  const setB = new Set(b.split(" "));
+  const intersection = new Set([...setA].filter((x) => setB.has(x)));
+  const union = new Set([...setA, ...setB]);
+  return union.size === 0 ? 0 : intersection.size / union.size;
+}
+
+/**
+ * Współdzielona logika przeliczenia wzorców dla użytkownika - używana zarówno
+ * przez ręczny przycisk "Przeanalizuj ponownie" (app/api/patterns/route.ts),
+ * jak i automatycznie w tle co kilka wiadomości (app/api/messages/route.ts).
+ * Cicho pomija (zwraca null), jeśli materiału jest za mało - w trybie
+ * automatycznym to normalne i nie powinno przerywać rozmowy.
+ */
+export async function recomputePatternsForUser(userId: string): Promise<{ created: number; updated: number } | null> {
+  const [memories, messageCount] = await Promise.all([
+    prisma.memory.findMany({
+      where: { userId, archived: false, category: { in: ["FACT", "INTERPRETATION", "PATTERN"] } },
+      orderBy: { createdAt: "desc" },
+      take: 60,
+    }),
+    prisma.message.count({ where: { conversation: { userId }, role: "user" } }),
+  ]);
+
+  if (messageCount < MIN_MESSAGES_FOR_ANALYSIS || memories.length === 0) return null;
+
+  const contextText = memories.map((m) => `- [${m.subject}/${m.category}] ${m.content}`).join("\n");
+  const candidates = await analyzePatterns(contextText);
+  if (candidates.length === 0) return { created: 0, updated: 0 };
+
+  const existing = await prisma.pattern.findMany({ where: { userId } });
+  let created = 0;
+  let updated = 0;
+
+  for (const candidate of candidates) {
+    const match = existing.find((p) => titleSimilarity(normalizeTitle(p.title), normalizeTitle(candidate.title)) > 0.5);
+    if (match) {
+      await prisma.pattern.update({
+        where: { id: match.id },
+        data: {
+          occurrences: { increment: 1 },
+          lastSeenAt: new Date(),
+          description: candidate.description,
+          cycleSteps: candidate.cycleSteps.length > 0 ? candidate.cycleSteps : (match.cycleSteps as any),
+        },
+      });
+      updated++;
+    } else {
+      await prisma.pattern.create({
+        data: {
+          userId,
+          title: candidate.title,
+          description: candidate.description,
+          category: candidate.category,
+          cycleSteps: candidate.cycleSteps,
+        },
+      });
+      created++;
+    }
+  }
+
+  return { created, updated };
 }

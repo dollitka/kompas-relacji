@@ -6,6 +6,7 @@ import { checkCrisisSignals } from "@/lib/ai/crisisDetection";
 import { buildSystemPrompt } from "@/lib/ai/systemPrompt";
 import { getAssistantReply, GeminiConfigError, GeminiRateLimitError, GeminiAPIError, type ChatMessage } from "@/lib/ai/client";
 import { extractAndStoreMemories } from "@/lib/ai/memoryExtraction";
+import { recomputePatternsForUser } from "@/lib/ai/patternAnalysis";
 import { getActivePartnerId } from "@/lib/partnerLink";
 
 // Domyślny limit czasu funkcji serwerowej na Vercel to 10s - odpowiedź AI dla
@@ -15,6 +16,7 @@ import { getActivePartnerId } from "@/lib/partnerLink";
 export const maxDuration = 60;
 
 const HISTORY_LIMIT = 20; // ostatnie N wiadomości przekazywane jako kontekst do AI
+const PATTERN_RECHECK_EVERY_N_MESSAGES = 5; // co ile wiadomości użytkownika odświeżamy wzorce w tle
 
 const bodySchema = z.object({
   conversationId: z.string().min(1),
@@ -108,6 +110,18 @@ export async function POST(req: Request) {
       assistantMessage: replyText,
       crisisFlagged: crisis.isCrisis,
     }).catch((e) => console.error("Background memory extraction error:", e));
+
+    // Automatyczne odświeżenie wzorców co N wiadomości (nie przy każdej, żeby nie
+    // mnożyć wywołań AI bez potrzeby). Użytkownik może też odświeżyć ręcznie w
+    // dowolnym momencie przyciskiem na stronie "Wzorce".
+    prisma.message
+      .count({ where: { conversation: { userId: user.id }, role: "user" } })
+      .then((totalUserMessages) => {
+        if (totalUserMessages % PATTERN_RECHECK_EVERY_N_MESSAGES === 0) {
+          return recomputePatternsForUser(user.id);
+        }
+      })
+      .catch((e) => console.error("Background pattern recompute error:", e));
 
     return NextResponse.json({
       message: assistantMessage,
