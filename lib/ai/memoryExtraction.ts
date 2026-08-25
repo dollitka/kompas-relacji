@@ -47,6 +47,15 @@ ZAPISUJ: konkretne NOWE fakty o zachowaniach, powtarzające się reakcje, ważne
 wydarzenia, nierozwiązane problemy, granice, potrzeby, cechy sugerujące styl
 przywiązania - czego jeszcze nie ma na liście "Co już wiadomo".
 
+WAŻNE rozróżnienie PARTNER vs RELATIONSHIP: nie wrzucaj automatycznie wszystkiego
+do subject="PARTNER". Jeśli opisywana sytuacja pokazuje wzorzec MIĘDZY dwiema
+osobami (reakcja jednej osoby na drugą, cykl typu "ja robię X → on/ona robi Y"),
+zapisz to jako subject="RELATIONSHIP", nie tylko jako fakt o partnerze. Przykład:
+zamiast tylko "Partner wycofuje się, gdy jest konflikt" (PARTNER), rozważ też/zamiast
+tego "Gdy pojawia się konflikt, użytkownik szuka rozmowy, a partner się wycofuje"
+(RELATIONSHIP) - to drugie ujęcie jest zwykle bardziej przydatne na przyszłość niż
+charakteryzowanie samego partnera.
+
 Odpowiedz WYŁĄCZNIE poprawnym JSON-em (bez markdown, bez komentarzy, bez preambuły),
 w formacie:
 {"candidates": [
