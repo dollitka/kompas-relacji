@@ -47,6 +47,7 @@ export function MemoryManager({ initialMemories }: { initialMemories: MemoryItem
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [consolidateMessage, setConsolidateMessage] = useState<string | null>(null);
 
   const grouped: Record<string, MemoryItem[]> = { USER: [], PARTNER: [], RELATIONSHIP: [] };
   for (const m of memories) grouped[m.subject]?.push(m);
@@ -80,6 +81,33 @@ export function MemoryManager({ initialMemories }: { initialMemories: MemoryItem
     const res = await fetch("/api/memory", { method: "DELETE" });
     if (res.ok) setMemories([]);
     setBusy(false);
+  }
+
+  async function handleConsolidate() {
+    setBusy(true);
+    setConsolidateMessage(null);
+    try {
+      const res = await fetch("/api/memory/consolidate", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setConsolidateMessage(data.error ?? "Nie udało się przeanalizować pamięci.");
+        return;
+      }
+      if (data.merged > 0) {
+        setConsolidateMessage(`Połączono ${data.merged} ${data.merged === 1 ? "duplikat" : "duplikaty/duplikatów"}.`);
+        const refreshed = await fetch("/api/memory");
+        if (refreshed.ok) {
+          const refreshedData = await refreshed.json();
+          setMemories(refreshedData.memories ?? []);
+        }
+      } else {
+        setConsolidateMessage(data.message ?? "Nie znaleziono duplikatów.");
+      }
+    } catch {
+      setConsolidateMessage("Brak połączenia. Spróbuj ponownie.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (memories.length === 0) {
@@ -153,9 +181,16 @@ export function MemoryManager({ initialMemories }: { initialMemories: MemoryItem
         ) : null
       )}
 
-      <button onClick={handleClearAll} disabled={busy} className="btn-secondary border-anxious/30 text-anxious hover:bg-anxious/5">
-        Wyczyść całą pamięć
-      </button>
+      {consolidateMessage && <p className="rounded-lg bg-navy-50 px-3 py-2 text-sm text-navy-600">{consolidateMessage}</p>}
+
+      <div className="flex flex-wrap gap-3">
+        <button onClick={handleConsolidate} disabled={busy} className="btn-secondary">
+          Wykryj i połącz duplikaty
+        </button>
+        <button onClick={handleClearAll} disabled={busy} className="btn-secondary border-anxious/30 text-anxious hover:bg-anxious/5">
+          Wyczyść całą pamięć
+        </button>
+      </div>
     </div>
   );
 }
