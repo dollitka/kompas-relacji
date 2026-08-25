@@ -11,6 +11,14 @@ type ChatMsg = {
   flaggedCrisis?: boolean;
 };
 
+// Web Speech API nie jest ustandaryzowane we wszystkich przeglądarkach (np.
+// desktopowy Firefox go nie ma) - stąd `any` i sprawdzanie dostępności w
+// runtime zamiast polegania na typach TypeScript.
+function getSpeechRecognitionCtor(): any {
+  if (typeof window === "undefined") return null;
+  return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null;
+}
+
 export function ChatWindow({
   conversationId,
   title,
@@ -25,11 +33,48 @@ export function ChatWindow({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [crisisType, setCrisisType] = useState<"violence" | "self_harm" | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, sending]);
+
+  useEffect(() => {
+    setSpeechSupported(getSpeechRecognitionCtor() !== null);
+    return () => {
+      recognitionRef.current?.stop?.();
+    };
+  }, []);
+
+  function toggleRecording() {
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const SpeechRecognitionCtor = getSpeechRecognitionCtor();
+    if (!SpeechRecognitionCtor) return;
+
+    const recognition = new SpeechRecognitionCtor();
+    recognition.lang = "pl-PL";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results?.[0]?.[0]?.transcript ?? "";
+      if (transcript) {
+        setDraft((prev) => (prev.trim() ? `${prev.trim()} ${transcript}` : transcript));
+      }
+    };
+    recognition.onerror = () => setIsRecording(false);
+    recognition.onend = () => setIsRecording(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsRecording(true);
+  }
 
   async function sendMessage(text: string) {
     const trimmed = text.trim();
@@ -114,24 +159,42 @@ export function ChatWindow({
         <div ref={scrollRef} />
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-2 flex items-end gap-2 border-t border-navy-100 pt-4">
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              sendMessage(draft);
-            }
-          }}
-          placeholder="Opisz sytuację…"
-          rows={2}
-          className="input-field flex-1 resize-none"
-          maxLength={6000}
-        />
-        <button type="submit" disabled={sending || !draft.trim()} className="btn-primary shrink-0">
-          Wyślij
-        </button>
+      <form onSubmit={handleSubmit} className="mt-2 border-t border-navy-100 pt-4">
+        <div className="flex items-end gap-2">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Opisz sytuację… (Enter = nowa linijka)"
+            rows={2}
+            className="input-field flex-1 resize-none"
+            maxLength={6000}
+          />
+          {speechSupported && (
+            <button
+              type="button"
+              onClick={toggleRecording}
+              title={isRecording ? "Zatrzymaj nagrywanie" : "Nagraj wiadomość głosowo"}
+              aria-label={isRecording ? "Zatrzymaj nagrywanie głosowe" : "Nagraj wiadomość głosowo"}
+              className={`shrink-0 rounded-full border p-2.5 transition ${
+                isRecording
+                  ? "animate-pulse border-anxious bg-anxious/10 text-anxious"
+                  : "border-navy-100 bg-white text-navy-500 hover:bg-navy-50"
+              }`}
+            >
+              {/* Prosta ikona mikrofonu (SVG, bez zewnętrznej biblioteki) */}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
+            </button>
+          )}
+          <button type="submit" disabled={sending || !draft.trim()} className="btn-primary shrink-0">
+            Wyślij
+          </button>
+        </div>
+        {isRecording && <p className="mt-1.5 text-xs text-anxious">Nagrywam… mów teraz.</p>}
       </form>
     </div>
   );

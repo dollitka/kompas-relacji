@@ -12,6 +12,7 @@ type MemoryItem = {
   importance: number;
   userConfirmed: boolean;
   createdAt: string;
+  shareStatus?: string;
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -34,6 +35,11 @@ const CATEGORY_COLORS: Record<string, string> = {
   PATTERN: "bg-avoidant/10 text-avoidant",
   IMPORTANT_EVENT: "bg-secure/10 text-secure",
   OPEN_ISSUE: "bg-anxious/10 text-anxious",
+};
+
+const SHARE_STATUS_LABELS: Record<string, string> = {
+  PENDING: "Do zatwierdzenia (zakładka Partner)",
+  APPROVED: "Udostępnione partnerowi/ce",
 };
 
 export function MemoryManager({ initialMemories }: { initialMemories: MemoryItem[] }) {
@@ -95,6 +101,9 @@ export function MemoryManager({ initialMemories }: { initialMemories: MemoryItem
                     </span>
                     <span className="text-xs text-navy-300">pewność {m.confidence}%</span>
                     <span className="text-xs text-navy-300">· {formatDate(m.createdAt)}</span>
+                    {m.shareStatus && SHARE_STATUS_LABELS[m.shareStatus] && (
+                      <span className="pill bg-lilac-50 text-navy-500">{SHARE_STATUS_LABELS[m.shareStatus]}</span>
+                    )}
                   </div>
 
                   {editingId === m.id ? (

@@ -1,5 +1,6 @@
 import { getStructuredJSON } from "@/lib/ai/client";
 import { prisma } from "@/lib/db";
+import { getActivePartnerId } from "@/lib/partnerLink";
 
 // ---------------------------------------------------------------------------
 // Po każdej turze rozmowy (wiadomość użytkownika + odpowiedź asystenta)
@@ -107,6 +108,7 @@ export async function extractAndStoreMemories(params: {
   conversationId: string;
   userMessage: string;
   assistantMessage: string;
+  crisisFlagged: boolean;
 }): Promise<void> {
   // Sprawdź, czy użytkownik w ogóle zezwala na zapisywanie nowej pamięci.
   const settings = await prisma.settings.findUnique({ where: { userId: params.userId } });
@@ -152,6 +154,19 @@ export async function extractAndStoreMemories(params: {
 
   if (toCreate.length === 0) return;
 
+  // --- Kwalifikacja do "wspólnej puli" z partnerem (opcjonalna funkcja) ---
+  // TWARDA ZASADA BEZPIECZEŃSTWA: jeśli w TEJ rozmowie kiedykolwiek padł sygnał
+  // kryzysowy (przemoc, groźby, myśli samobójcze - patrz crisisDetection.ts),
+  // NIC z tej rozmowy nigdy nie trafia do kolejki "do udostępnienia partnerowi",
+  // niezależnie od tego, czy bieżąca wiadomość też go wywołała. Brak wyjątków.
+  const conversationHadCrisis =
+    params.crisisFlagged ||
+    (await prisma.message.count({ where: { conversationId: params.conversationId, flaggedCrisis: true } })) > 0;
+
+  const partnerId = conversationHadCrisis ? null : await getActivePartnerId(params.userId);
+  const isEligibleForSharePrompt = (c: Candidate) =>
+    !conversationHadCrisis && partnerId !== null && c.subject === "RELATIONSHIP" && (c.category === "FACT" || c.category === "INTERPRETATION");
+
   await prisma.memory.createMany({
     data: toCreate.map((c) => ({
       userId: params.userId,
@@ -161,6 +176,7 @@ export async function extractAndStoreMemories(params: {
       confidence: c.confidence,
       importance: c.importance,
       sourceConversationId: params.conversationId,
+      shareStatus: isEligibleForSharePrompt(c) ? "PENDING" : "NONE",
     })),
   });
 }

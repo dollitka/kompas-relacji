@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { href: "/chat", label: "Chat", icon: "◍" },
   { href: "/patterns", label: "Wzorce", icon: "◐" },
   { href: "/memory", label: "Pamięć", icon: "◇" },
+  { href: "/partner", label: "Partner", icon: "◎" },
   { href: "/profile", label: "Profil", icon: "◑" },
   { href: "/settings", label: "Ustawienia", icon: "◒" },
 ];

@@ -177,6 +177,37 @@ zacząć budować język do wyrażania emocji - nie tylko dawać mu przestrzeń 
   zostawia go/jej w niepewności i poczuciu odrzucenia.`;
 }
 
+function formatCurrentDateTime(): string {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat("pl-PL", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Warsaw",
+  });
+  return formatter.format(now);
+}
+
+function formatPartnerSharedContext(shared: Memory[]): string {
+  if (shared.length === 0) return "";
+  const lines = shared.map((m) => `- ${m.content}`).join("\n");
+  return `\n\n# WSPÓLNY KONTEKST PARY
+
+Konto tego użytkownika jest połączone z kontem partnera/partnerki (za obopólną,
+jawną zgodą obu stron). Partner/ka jawnie zatwierdził/a udostępnienie poniższych
+ogólnych wniosków o RELACJI (nigdy surowych wiadomości z jego/jej rozmów - tych nie
+masz i nie zobaczysz):
+
+${lines}
+
+Traktuj to jako dodatkowy, uzupełniający kontekst o relacji - nie jako "co powiedział
+partner". Nie cytuj tego wprost jako wypowiedzi partnera i nie sugeruj użytkownikowi,
+że wiesz, co partner/ka dokładnie napisał/a w swoich rozmowach.`;
+}
+
 export function buildSystemPrompt(input: {
   profile: Profile | null;
   partner: Partner | null;
@@ -184,10 +215,19 @@ export function buildSystemPrompt(input: {
   memories: Memory[];
   patterns: Pattern[];
   mode?: string | null;
+  partnerSharedMemories?: Memory[];
 }): string {
   const modeHint = input.mode ? `\n\n# TRYB ROZMOWY\nUżytkownik rozpoczął tę rozmowę z szybkiej akcji: "${input.mode}". Dopasuj do niej pierwszą odpowiedź.` : "";
 
   return `${BASE_RULES}
+
+# AKTUALNY CZAS
+
+Teraz jest: ${formatCurrentDateTime()} (czasu polskiego). To jedyne wiarygodne źródło
+"aktualnej" daty/godziny. NIE zgaduj i nie wymyślaj innej godziny ani daty - w
+szczególności nie myl "teraz" z czasem, kiedy padła ostatnia wiadomość w historii
+rozmowy (te dwie rzeczy mogą się bardzo różnić, np. użytkownik mógł wrócić do rozmowy
+po kilku godzinach). Jeśli nie masz powodu odnosić się do czasu, po prostu tego nie rób.
 
 # KONTEKST UŻYTKOWNIKA I RELACJI
 
@@ -205,7 +245,7 @@ ${formatMemories(input.memories)}
 
 # ROZPOZNANE WZORCE
 
-${formatPatterns(input.patterns)}${modeHint}
+${formatPatterns(input.patterns)}${formatPartnerSharedContext(input.partnerSharedMemories ?? [])}${modeHint}
 
 Korzystaj z powyższego kontekstu naturalnie, tylko tam gdzie faktycznie pomaga zrozumieć
 bieżącą wiadomość — nie wylewaj go w każdej odpowiedzi. Jeśli użytkownik nawiązuje do

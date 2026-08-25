@@ -33,6 +33,9 @@ model User {
   events        ImportantEvent[]
   assessments   AttachmentAssessment[]
 
+  coupleLinksAsA CoupleLink[] @relation("CoupleLinkAsUserA")
+  coupleLinksAsB CoupleLink[] @relation("CoupleLinkAsUserB")
+
   @@map("users")
 }
 
@@ -148,6 +151,13 @@ model Memory {
   userConfirmed Boolean @default(false) // czy użytkownik potwierdził/edytował ręcznie
   archived      Boolean @default(false) // "usunięte" - miękkie usuwanie na wypadek odzysku, ale nieużywane w promptach
 
+  // --- Łączenie kont partnerów (opcjonalne) ---
+  // NONE = nie dotyczy / nigdy nie będzie proponowane do udostępnienia
+  // PENDING = AI zaproponowało udostępnienie, czeka na decyzję użytkownika
+  // APPROVED = użytkownik zatwierdził - widoczne w kontekście AI partnera
+  // DECLINED = użytkownik odrzucił propozycję udostępnienia
+  shareStatus String @default("NONE")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -203,4 +213,36 @@ model Settings {
   updatedAt DateTime @updatedAt
 
   @@map("settings")
+}
+
+// --------------------------- ŁĄCZENIE KONT PARTNERÓW -------------------------
+
+// Reprezentuje jedno "połączenie" między dwoma kontami (parą). Użytkownik może
+// mieć w historii wiele wierszy (np. połączenie -> rozłączenie -> nowe
+// połączenie), ale logika aplikacji dba o to, żeby aktywny był co najwyżej
+// jeden na raz. Samo istnienie wiersza ze status="ACTIVE" jest jedynym
+// źródłem prawdy o tym, czy dwoje kont jest obecnie połączonych - dzięki
+// temu rozłączenie natychmiast i w 100% zatrzymuje dalsze udostępnianie,
+// bez potrzeby ręcznego czyszczenia wcześniej zatwierdzonych wpisów pamięci.
+model CoupleLink {
+  id String @id @default(cuid())
+
+  userAId String
+  userA   User   @relation("CoupleLinkAsUserA", fields: [userAId], references: [id], onDelete: Cascade)
+
+  userBId String?
+  userB   User?   @relation("CoupleLinkAsUserB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  inviteCode String @unique
+
+  // PENDING = kod wygenerowany, czeka na wpisanie przez drugą osobę
+  // ACTIVE = obie strony połączone
+  // UNLINKED = połączenie zakończone (przez dowolną ze stron)
+  status String @default("PENDING")
+
+  createdAt  DateTime  @default(now())
+  linkedAt   DateTime?
+  unlinkedAt DateTime?
+
+  @@map("couple_links")
 }

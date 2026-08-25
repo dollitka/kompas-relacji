@@ -6,6 +6,7 @@ import { checkCrisisSignals } from "@/lib/ai/crisisDetection";
 import { buildSystemPrompt } from "@/lib/ai/systemPrompt";
 import { getAssistantReply, GeminiConfigError, GeminiRateLimitError, GeminiAPIError, type ChatMessage } from "@/lib/ai/client";
 import { extractAndStoreMemories } from "@/lib/ai/memoryExtraction";
+import { getActivePartnerId } from "@/lib/partnerLink";
 
 // Domyślny limit czasu funkcji serwerowej na Vercel to 10s - odpowiedź AI dla
 // rozbudowanej analizy relacji czasem tyle nie starcza, co wygląda jak
@@ -54,7 +55,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const [profile, partner, assessment, memories, patterns, history] = await Promise.all([
+    const [profile, partner, assessment, memories, patterns, history, activePartnerId] = await Promise.all([
       prisma.profile.findUnique({ where: { userId: user.id } }),
       prisma.partner.findUnique({ where: { userId: user.id } }),
       prisma.attachmentAssessment.findFirst({ where: { userId: user.id }, orderBy: { completedAt: "desc" } }),
@@ -69,9 +70,20 @@ export async function POST(req: Request) {
         orderBy: { createdAt: "desc" },
         take: HISTORY_LIMIT,
       }),
+      getActivePartnerId(user.id),
     ]);
 
-    const system = buildSystemPrompt({ profile, partner, assessment, memories, patterns, mode: conversation.mode });
+    // Wspólny kontekst pary (opcjonalny) - tylko wnioski o RELACJI, które
+    // partner/ka jawnie zatwierdził/a do udostępnienia. Nigdy surowe wiadomości.
+    const partnerSharedMemories = activePartnerId
+      ? await prisma.memory.findMany({
+          where: { userId: activePartnerId, shareStatus: "APPROVED", archived: false, subject: "RELATIONSHIP" },
+          orderBy: { importance: "desc" },
+          take: 20,
+        })
+      : [];
+
+    const system = buildSystemPrompt({ profile, partner, assessment, memories, patterns, mode: conversation.mode, partnerSharedMemories });
 
     const chatHistory: ChatMessage[] = history
       .reverse()
@@ -94,6 +106,7 @@ export async function POST(req: Request) {
       conversationId,
       userMessage: content,
       assistantMessage: replyText,
+      crisisFlagged: crisis.isCrisis,
     }).catch((e) => console.error("Background memory extraction error:", e));
 
     return NextResponse.json({

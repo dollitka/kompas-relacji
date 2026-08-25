@@ -12,7 +12,7 @@ export default async function DashboardPage() {
   if (!user) redirect("/login");
   if (!user.onboardingCompleted) redirect("/onboarding");
 
-  const [conversations, patterns, events, assessment, observations] = await Promise.all([
+  const [conversations, patterns, events, assessment, observations, pendingShareCount] = await Promise.all([
     prisma.conversation.findMany({ where: { userId: user.id }, orderBy: { updatedAt: "desc" }, take: 3 }),
     prisma.pattern.findMany({ where: { userId: user.id }, orderBy: { lastSeenAt: "desc" }, take: 3 }),
     prisma.importantEvent.findMany({ where: { userId: user.id }, orderBy: { eventDate: "desc" }, take: 3 }),
@@ -22,10 +22,23 @@ export default async function DashboardPage() {
       orderBy: { createdAt: "desc" },
       take: 3,
     }),
+    prisma.memory.count({ where: { userId: user.id, shareStatus: "PENDING", archived: false } }),
   ]);
 
   return (
     <AppShell nick={user.nick}>
+      {pendingShareCount > 0 && (
+        <Link
+          href="/partner"
+          className="mb-6 flex items-center justify-between rounded-xl2 border border-lilac-200 bg-lilac-50 px-4 py-3 text-sm text-navy-700 transition hover:bg-lilac-100"
+        >
+          <span>
+            Masz {pendingShareCount} {pendingShareCount === 1 ? "wniosek" : "wnioski"} do zatwierdzenia w zakładce Partner
+          </span>
+          <span aria-hidden>→</span>
+        </Link>
+      )}
+
       <h1 className="font-display text-2xl text-navy-900">Cześć, {user.nick}.</h1>
       <p className="mt-1 text-sm text-navy-400">Jak mogę Ci dzisiaj pomóc?</p>
 

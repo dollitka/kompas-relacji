@@ -30,6 +30,18 @@ export default function PrivacyPage() {
           pojedyncze wpisy, wyłączyć zapisywanie nowej pamięci lub wyczyścić ją całą.
         </p>
         <p>
+          <strong>Łączenie kont z partnerem/partnerką (funkcja opcjonalna).</strong>{" "}
+          Aplikacja umożliwia dobrowolne połączenie Twojego konta z kontem
+          partnera/partnerki, wyłącznie za obopólną, jawną zgodą obu stron (wymiana kodu
+          zaproszenia). Po połączeniu treść Waszych rozmów NIGDY nie jest sobie nawzajem
+          pokazywana. Jedyne, co może "przenikać" między kontami, to pojedyncze, ogólne
+          wnioski o relacji (nie o drugiej osobie), i to tylko takie, które dana osoba
+          każdorazowo, ręcznie zatwierdzi w zakładce „Partner”. Treści rozmów zawierających
+          sygnały przemocy, gróźb lub zagrożenia są automatycznie i całkowicie wykluczone z
+          możliwości udostępnienia. Połączenie kont można zerwać w dowolnym momencie w
+          zakładce „Partner” — od tego momentu żadne nowe informacje już się nie wymieniają.
+        </p>
+        <p>
           <strong>Usunięcie konta.</strong> W Ustawieniach możesz trwale usunąć konto wraz
           ze wszystkimi powiązanymi danymi (rozmowy, pamięć, wzorce, wyniki testów).
           Usunięcie jest nieodwracalne.
